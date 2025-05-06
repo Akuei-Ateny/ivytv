@@ -1,4 +1,3 @@
-
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
@@ -11,7 +10,7 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
   },
   preview: {
-    host: "ivytv.onrender.com"
+    allowedHosts: ["ivytv.onrender.com"]
   },
   plugins: [
     react(),
