@@ -2,8 +2,8 @@ import { createClient } from '@supabase/supabase-js';
 import { Profile, User, MatchFilters } from '../types';
 
 // Use hard-coded values if environment variables are not available
-const supabaseUrl = 'https://frosefrpajavyosbolfq.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
@@ -12,7 +12,7 @@ export async function signInWithGoogle() {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${window.location.origin}/profile`,
+      redirectTo: `${window.location.origin}/`, 
       queryParams: {
         access_type: 'offline',
         prompt: 'consent',
@@ -21,14 +21,6 @@ export async function signInWithGoogle() {
   });
   
   if (error) throw error;
-
-  // Set online status after successful login
-  if (data) {
-    const session = await supabase.auth.getSession();
-    if (session?.data?.session?.user) {
-      await updatePresenceStatus(session.data.session.user.id, 'online');
-    }
-  }
 
   return data;
 }
@@ -47,6 +39,47 @@ export async function signOut() {
 export async function getCurrentUser(): Promise<User | null> {
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) return null;
+  
+  // Check if user already has a profile
+  let profile = await getProfile(data.user.id);
+  
+  // If no profile exists, create a basic one with available user metadata
+  if (!profile) {
+    try {
+      const { user_metadata } = data.user;
+      
+      // Get avatar URL from user metadata - properly handle Google picture URL
+      let avatarUrl = '';
+      if (user_metadata?.avatar_url) {
+        avatarUrl = user_metadata.avatar_url;
+      } else if (user_metadata?.picture) {
+        // Google OAuth often stores picture URL in 'picture' field
+        avatarUrl = user_metadata.picture;
+      }
+      
+      const basicProfile = {
+        user_id: data.user.id,
+        full_name: user_metadata?.full_name || user_metadata?.name || '',
+        avatar_url: avatarUrl,
+        // Set minimum required fields with placeholder values
+        university: '',
+        major: '',
+        graduation_year: new Date().getFullYear().toString(),
+        bio: '',
+        gender: 'Prefer not to say',
+        interests: []
+      };
+      
+      // Create the basic profile regardless of name availability
+      // This ensures we always have a profile to work with for new users
+      await createProfile(basicProfile);
+      
+      // Fetch the newly created profile
+      profile = await getProfile(data.user.id);
+    } catch (error) {
+      console.error("Error creating basic profile:", error);
+    }
+  }
   
   // Update presence status to online
   await updatePresenceStatus(data.user.id, 'online');
@@ -348,4 +381,54 @@ export async function submitReport(reportData: {
     
   if (error) throw error;
   return data[0];
+}
+
+// Message functions
+export async function sendMessage(senderId: string, receiverId: string, content: string) {
+  const { data, error } = await supabase
+    .from('messages')
+    .insert({
+      sender_id: senderId,
+      receiver_id: receiverId,
+      content,
+      read: false
+    })
+    .select();
+    
+  if (error) throw error;
+  return data[0];
+}
+
+export async function getMessages(userId: string, otherId: string) {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*')
+    .or(`and(sender_id.eq.${userId},receiver_id.eq.${otherId}),and(sender_id.eq.${otherId},receiver_id.eq.${userId})`)
+    .order('created_at');
+    
+  if (error) throw error;
+  return data || [];
+}
+
+export async function markMessagesAsRead(userId: string, otherId: string) {
+  const { error } = await supabase
+    .from('messages')
+    .update({ read: true })
+    .eq('sender_id', otherId)
+    .eq('receiver_id', userId)
+    .eq('read', false);
+    
+  if (error) throw error;
+  return true;
+}
+
+export async function getUnreadMessageCount(userId: string) {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*', { count: 'exact' })
+    .eq('receiver_id', userId)
+    .eq('read', false);
+    
+  if (error) throw error;
+  return data?.length || 0;
 }

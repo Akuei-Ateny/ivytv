@@ -1,22 +1,65 @@
-
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import MainLayout from '@/components/layout/MainLayout';
-import { getCurrentUser } from '@/lib/supabase';
+import { getCurrentUser, getProfile } from '@/lib/supabase';
 import { useEffect, useState } from 'react';
+import { User, Profile as ProfileType } from '@/types';
+import { toast } from 'sonner';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 const Index = () => {
   const navigate = useNavigate();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<ProfileType | null>(null);
+  const [profileIncomplete, setProfileIncomplete] = useState(false);
+  const [loading, setLoading] = useState(true);
   
   useEffect(() => {
     const checkAuthState = async () => {
-      const user = await getCurrentUser();
-      setIsLoggedIn(!!user);
+      try {
+        setLoading(true);
+        const currentUser = await getCurrentUser();
+        setUser(currentUser);
+        setIsLoggedIn(!!currentUser);
+        
+        if (currentUser) {
+          // Check if user has a profile
+          const userProfile = await getProfile(currentUser.id);
+          setProfile(userProfile);
+          
+          // Check if profile is incomplete (missing required fields)
+          const isIncomplete = !userProfile || 
+                              !userProfile.university || 
+                              !userProfile.major || 
+                              userProfile.university === '';
+          
+          setProfileIncomplete(isIncomplete);
+          
+          // Show a toast notification if the profile is incomplete
+          if (isIncomplete) {
+            toast(
+              <div>
+                <div className="font-semibold mb-1">Complete Your Profile</div>
+                <div className="mb-2">Please complete your profile to unlock all features.</div>
+                <Link to="/profile">
+                  <Button variant="outline" className="border-ivy text-ivy">Complete Now</Button>
+                </Link>
+              </div>,
+              { duration: 8000 }
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Error checking auth state:", error);
+      } finally {
+        setLoading(false);
+      }
     };
     
     checkAuthState();
-  }, []);
+  }, [navigate]);
   
   const handleCTA = (destination: string) => {
     if (isLoggedIn) {
@@ -28,6 +71,26 @@ const Index = () => {
 
   return (
     <MainLayout>
+      {/* Profile Completion Alert */}
+      {isLoggedIn && profileIncomplete && !loading && (
+        <div className="container mx-auto px-4 mt-6">
+          <Alert variant="default" className="bg-amber-50 border-amber-200">
+            <AlertCircle className="h-5 w-5 text-amber-600" />
+            <AlertTitle className="text-amber-800">Complete your profile</AlertTitle>
+            <AlertDescription className="text-amber-700">
+              Please complete your profile to get the most out of IvyTV.
+              <Button 
+                variant="link" 
+                className="text-ivy font-medium pl-1" 
+                onClick={() => navigate("/profile")}
+              >
+                Complete Profile
+              </Button>
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
+      
       {/* Hero Section */}
       <section className="relative py-20 overflow-hidden">
         <div className="absolute inset-0 z-0">
@@ -118,7 +181,7 @@ const Index = () => {
           <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
             <div className="hover-card bg-white rounded-lg p-8 text-center shadow hover-scale">
               <div className="w-16 h-16 mx-auto mb-6 bg-ivy/10 rounded-full flex items-center justify-center">
-                <svg className="w-8 h-8 text-ivy" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                <svg className="w-8 h-8 text-ivy" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20h7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20h2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
               </div>
               <h3 className="text-xl font-medium mb-3">Exclusive Network</h3>
               <p className="text-gray-600">

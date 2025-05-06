@@ -1,10 +1,10 @@
 
+import React, { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { useEffect } from "react";
 import { getCurrentUser, updatePresenceStatus } from "@/lib/supabase";
 
 import Index from "./pages/Index";
@@ -16,6 +16,7 @@ import Network from "./pages/Network";
 import Settings from "./pages/Settings";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
+import Messages from "./pages/Messages";
 
 // Create a new QueryClient instance
 const queryClient = new QueryClient({
@@ -66,12 +67,12 @@ const PresenceManager = () => {
   return null;
 };
 
-const App = () => (
+const App: React.FC = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
+    <BrowserRouter>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
         <PresenceManager />
         <Routes>
           <Route path="/" element={<Index />} />
@@ -82,10 +83,12 @@ const App = () => (
           <Route path="/settings" element={<Settings />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/terms-of-service" element={<TermsOfService />} />
+          <Route path="/messages" element={<Messages />} />
+          <Route path="/messages/:connectionId" element={<Messages />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+      </TooltipProvider>
+    </BrowserRouter>
   </QueryClientProvider>
 );
 

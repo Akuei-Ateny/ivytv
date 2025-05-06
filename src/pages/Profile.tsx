@@ -1,5 +1,6 @@
+
 import { useState, useEffect } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { getCurrentUser, getProfile, updatePresenceStatus } from "@/lib/supabase";
 import MainLayout from "@/components/layout/MainLayout";
 import ProfileForm from "@/components/profile/ProfileForm";
@@ -12,6 +13,8 @@ const Profile = () => {
   const [profile, setProfile] = useState<ProfileType | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0); // Add a refresh key to force re-fetch
+  const location = useLocation();
 
   useEffect(() => {
     const fetchUserAndProfile = async () => {
@@ -33,6 +36,9 @@ const Profile = () => {
         // If no profile exists yet, automatically set to edit mode
         if (!profileData) {
           setIsEditMode(true);
+        } else if (location.state?.editMode) {
+          // If redirected with editMode state, set to edit mode
+          setIsEditMode(true);
         }
       } catch (error) {
         console.error("Error fetching user or profile:", error);
@@ -43,15 +49,20 @@ const Profile = () => {
     };
     
     fetchUserAndProfile();
-  }, []);
+    
+    // Update presence status to offline when component unmounts
+    return () => {
+      if (user) {
+        updatePresenceStatus(user.id, 'offline').catch(console.error);
+      }
+    };
+  }, [location.state, refreshKey]); // Add refreshKey to the dependency array
   
   const handleProfileComplete = () => {
     toast.success("Profile saved successfully!");
     setIsEditMode(false);
-    // Refresh profile data
-    if (user) {
-      getProfile(user.id).then(setProfile).catch(console.error);
-    }
+    // Refresh profile data by updating the refresh key
+    setRefreshKey(prev => prev + 1);
   };
 
   const handleEditClick = () => {
