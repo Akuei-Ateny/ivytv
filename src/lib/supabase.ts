@@ -346,27 +346,6 @@ export async function checkConnection(userId1: string, userId2: string): Promise
   }
 }
 
-// Add a function to get unread notifications count
-export async function getUnreadNotificationsCount(userId: string): Promise<number> {
-  try {
-    const { count, error } = await supabase
-      .from('notifications')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .eq('read', false);
-    
-    if (error) {
-      console.error("Error getting unread notifications count:", error);
-      return 0;
-    }
-    
-    return count || 0;
-  } catch (error) {
-    console.error("Error in getUnreadNotificationsCount:", error);
-    return 0;
-  }
-}
-
 // Presence functions
 export async function updatePresenceStatus(userId: string, status: 'online' | 'matching' | 'in_call' | 'idle' | 'offline') {
   const { error } = await supabase
@@ -497,52 +476,120 @@ export async function getUnreadMessageCount(userId: string) {
   return data?.length || 0;
 }
 
-// New function to notify users of friend requests
+// Simplified function to notify of friend requests without using notifications table
 export async function notifyUserOfFriendRequest(senderId: string, receiverId: string) {
-  const { data: senderProfile } = await supabase
-    .from('profiles')
-    .select('full_name')
-    .eq('user_id', senderId)
-    .single();
-  
-  // Create a notification
-  const { error } = await supabase
-    .from('notifications')
-    .insert({
-      user_id: receiverId,
-      type: 'friend_request',
-      message: `${senderProfile?.full_name} sent you a friend request`,
-      sender_id: senderId,
-      read: false
-    });
-  
-  if (error) console.error("Error creating notification:", error);
-  return !error;
+  // This function is now just a placeholder since notifications table doesn't exist
+  // In a real implementation, this would create a notification
+  console.log(`Notification: User ${senderId} sent a friend request to ${receiverId}`);
+  return true;
 }
 
-// Function to check for notifications
+// Placeholder function that returns an empty array since notifications table doesn't exist
 export async function getUserNotifications(userId: string) {
-  const { data, error } = await supabase
-    .from('notifications')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
-    
-  if (error) {
-    console.error("Error fetching notifications:", error);
-    return [];
-  }
-  
-  return data || [];
+  console.log(`[Info] Attempted to get notifications for user ${userId}, but notifications table doesn't exist`);
+  return [];
 }
 
-// Function to mark notifications as read
+// Placeholder function that returns true since notifications table doesn't exist
 export async function markNotificationAsRead(notificationId: string) {
-  const { error } = await supabase
-    .from('notifications')
-    .update({ read: true })
-    .eq('id', notificationId);
+  console.log(`[Info] Attempted to mark notification ${notificationId} as read, but notifications table doesn't exist`);
+  return true;
+}
+
+// Placeholder function that returns 0 since notifications table doesn't exist
+export async function getUnreadNotificationsCount(userId: string) {
+  console.log(`[Info] Attempted to get unread notification count for user ${userId}, but notifications table doesn't exist`);
+  return 0;
+}
+
+// Add a new function to notify users about matches
+export async function notifyUserOfMatch(
+  matcherId: string,
+  matchedUserId: string, 
+  roomId: string
+) {
+  try {
+    // Get the matcher's profile for the notification
+    const { data: matcherProfile } = await supabase
+      .from('profiles')
+      .select('full_name, avatar_url')
+      .eq('user_id', matcherId)
+      .single();
     
-  if (error) console.error("Error marking notification as read:", error);
-  return !error;
+    if (!matcherProfile) {
+      console.error('Matcher profile not found');
+      return false;
+    }
+    
+    // Store the match notification in presence table's metadata
+    // This is a workaround since we don't have a notifications table
+    const { error } = await supabase
+      .from('presence')
+      .update({
+        status: 'matching',
+        last_seen: new Date().toISOString(),
+        metadata: {
+          match_notification: {
+            matcher_id: matcherId,
+            matcher_name: matcherProfile.full_name,
+            matcher_avatar: matcherProfile.avatar_url,
+            room_id: roomId,
+            created_at: new Date().toISOString()
+          }
+        }
+      })
+      .eq('user_id', matchedUserId);
+    
+    if (error) {
+      console.error('Error sending match notification:', error);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error in notifyUserOfMatch:', error);
+    return false;
+  }
+}
+
+// Add function to check if user has pending match
+export async function checkForPendingMatch(userId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('presence')
+      .select('metadata')
+      .eq('user_id', userId)
+      .single();
+    
+    if (error || !data || !data.metadata || !data.metadata.match_notification) {
+      return null;
+    }
+    
+    return data.metadata.match_notification;
+  } catch (error) {
+    console.error('Error checking for pending match:', error);
+    return null;
+  }
+}
+
+// Add function to clear pending match notification
+export async function clearPendingMatch(userId: string) {
+  try {
+    const { error } = await supabase
+      .from('presence')
+      .update({
+        metadata: {}
+      })
+      .eq('user_id', userId);
+    
+    if (error) {
+      console.error('Error clearing pending match:', error);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error in clearPendingMatch:', error);
+    return false;
+  }
 }
